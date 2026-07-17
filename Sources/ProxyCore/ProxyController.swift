@@ -12,15 +12,24 @@ public enum ProxyStatus: Equatable {
 /// (with capped exponential backoff) until the user disconnects.
 @MainActor
 public final class ProxyController: ObservableObject {
-    @Published public var localHost = "127.0.0.1"
-    @Published public var localPort = "8080"
-    @Published public var remoteHost = ""
-    @Published public var remotePort = "8080"
+    @Published public var localHost: String
+    @Published public var localPort: String
+    @Published public var remoteHost: String
+    @Published public var remotePort: String
     @Published public var status: ProxyStatus = .disconnected
     @Published public var errorMessage: String?
     @Published public private(set) var isRunning = false
 
-    public init() {}
+    // ponytail: persist to UserDefaults.standard (same domain as AppSettings). Reopens show the
+    // last successfully-connected config.
+    private let defaults = UserDefaults.standard
+
+    public init() {
+        localHost = defaults.string(forKey: "localHost") ?? "127.0.0.1"
+        localPort = defaults.string(forKey: "localPort") ?? "8080"
+        remoteHost = defaults.string(forKey: "remoteHost") ?? ""
+        remotePort = defaults.string(forKey: "remotePort") ?? "8080"
+    }
 
     public var buttonTitle: String { isRunning ? "Disconnect" : "Connect" }
 
@@ -36,6 +45,12 @@ public final class ProxyController: ObservableObject {
         guard let lp = UInt16(localPort), lp > 0 else { errorMessage = "Local port must be 1–65535."; return }
         guard !remoteHost.isEmpty else { errorMessage = "Enter a remote IP / host."; return }
         guard let rp = UInt16(remotePort), rp > 0 else { errorMessage = "Remote port must be 1–65535."; return }
+
+        // Valid config — remember it for next launch.
+        defaults.set(localHost, forKey: "localHost")
+        defaults.set(localPort, forKey: "localPort")
+        defaults.set(remoteHost, forKey: "remoteHost")
+        defaults.set(remotePort, forKey: "remotePort")
 
         isRunning = true
         backoff = 1
