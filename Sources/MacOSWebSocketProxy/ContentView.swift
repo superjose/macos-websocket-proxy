@@ -27,6 +27,7 @@ extension ProxyStatus {
 }
 
 struct ContentView: View {
+    var onOpenSettings: () -> Void = {}
     @EnvironmentObject var controller: ProxyController
 
     var body: some View {
@@ -54,6 +55,7 @@ struct ContentView: View {
             HStack(spacing: 12) {
                 Button(controller.buttonTitle) { controller.toggle() }
                     .buttonStyle(.borderedProminent)
+                Button("Settings…") { onOpenSettings() }
                 Spacer()
                 statusBadge
             }
