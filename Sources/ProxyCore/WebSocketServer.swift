@@ -224,14 +224,18 @@ private final class ProxySession {
 
     private func forwardToUpstream(_ msg: WSMessage) {
         switch msg {
-        case .text(let s):   upstream?.send(.string(s)) { [weak self] err in if err != nil { self?.teardown() } }
-        case .binary(let d): upstream?.send(.data(d)) { [weak self] err in if err != nil { self?.teardown() } }
+        case .text(let s):   sendUpstream(.string(s))
+        case .binary(let d): sendUpstream(.data(d))
         case .ping(let d):   sendClient(opcode: .pong, payload: d) // server must answer pings
         case .pong:          break
         case .close:
             sendClient(opcode: .close, payload: Data())
             teardown()
         }
+    }
+
+    private func sendUpstream(_ msg: URLSessionWebSocketTask.Message) {
+        upstream?.send(msg) { [weak self] err in if err != nil { self?.teardown() } }
     }
 
     // MARK: upstream -> client

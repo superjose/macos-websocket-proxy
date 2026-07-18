@@ -9,8 +9,8 @@ public enum ProxyStatus: Equatable {
     case reconnecting
 }
 
-    /// Health of the remote WS server: real proxied connections are ground truth,
-    /// with a TCP probe filling the gaps when nothing is live.
+/// Health of the remote WS server: real proxied connections are ground truth,
+/// with a TCP probe filling the gaps when nothing is live.
 public enum UpstreamStatus: Equatable {
     case off          // proxy not running
     case waiting      // no live upstream right now; probe re-verifies within seconds
@@ -169,6 +169,11 @@ public final class ProxyController: ObservableObject {
         probeConn?.cancel(); probeConn = nil
     }
 
+    private func probeFailed() {
+        if liveUpstreams == 0 { upstreamStatus = .unreachable }
+        finishProbe()
+    }
+
     private func probeUpstream() {
         guard isRunning, probeConn == nil,
               let rp = UInt16(remotePort), let port = NWEndpoint.Port(rawValue: rp) else { return }
@@ -182,8 +187,7 @@ public final class ProxyController: ObservableObject {
                     self.upstreamStatus = .connected
                     self.finishProbe()
                 case .failed:
-                    if self.liveUpstreams == 0 { self.upstreamStatus = .unreachable }
-                    self.finishProbe()
+                    self.probeFailed()
                 default: break
                 }
             }
@@ -193,8 +197,7 @@ public final class ProxyController: ObservableObject {
         let timeout = DispatchWorkItem { [weak self] in
             Task { @MainActor in
                 guard let self, self.probeConn === conn else { return }
-                if self.liveUpstreams == 0 { self.upstreamStatus = .unreachable }
-                self.finishProbe()
+                self.probeFailed()
             }
         }
         probeTimeout = timeout

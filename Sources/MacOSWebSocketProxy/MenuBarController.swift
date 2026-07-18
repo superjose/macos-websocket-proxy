@@ -19,11 +19,8 @@ final class MenuBarController: NSObject {
 
     func show() {
         guard statusItem == nil else { refresh(); return }
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.button?.image = NSImage(systemSymbolName: currentSymbol(), accessibilityDescription: "WebSocket Proxy")
-        item.button?.image?.isTemplate = true
-        item.menu = buildMenu()
-        statusItem = item
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        refresh()
     }
 
     func hide() {
@@ -43,26 +40,24 @@ final class MenuBarController: NSObject {
 
     private func buildMenu() -> NSMenu {
         let menu = NSMenu()
-        let status = menu.addItem(withTitle: "Proxy: \(actions?.statusText() ?? "—")", action: nil, keyEquivalent: "")
-        status.isEnabled = false
-        let upstream = menu.addItem(withTitle: "Upstream: \(actions?.upstreamText() ?? "—")", action: nil, keyEquivalent: "")
-        upstream.isEnabled = false
-        menu.addItem(NSMenuItem.separator())
-
-        let connect = menu.addItem(withTitle: actions?.connectTitle() ?? "Connect",
-                                   action: #selector(toggleConnection), keyEquivalent: "")
-        connect.target = self
-        menu.addItem(NSMenuItem.separator())
-
-        let show = menu.addItem(withTitle: "Show Window", action: #selector(showWindow), keyEquivalent: "")
-        show.target = self
-        let settings = menu.addItem(withTitle: "Settings…", action: #selector(showSettings), keyEquivalent: ",")
-        settings.target = self
-        menu.addItem(NSMenuItem.separator())
-
-        let quit = menu.addItem(withTitle: "Quit", action: #selector(quit), keyEquivalent: "q")
-        quit.target = self
+        menu.addItem(item("Proxy: \(actions?.statusText() ?? "—")"))
+        menu.addItem(item("Upstream: \(actions?.upstreamText() ?? "—")"))
+        menu.addItem(.separator())
+        menu.addItem(item(actions?.connectTitle() ?? "Connect", #selector(toggleConnection)))
+        menu.addItem(.separator())
+        menu.addItem(item("Show Window", #selector(showWindow)))
+        menu.addItem(item("Settings…", #selector(showSettings), ","))
+        menu.addItem(.separator())
+        menu.addItem(item("Quit", #selector(quit), "q"))
         return menu
+    }
+
+    /// One-line menu item: no action = disabled info line, otherwise wired to this controller.
+    private func item(_ title: String, _ action: Selector? = nil, _ key: String = "") -> NSMenuItem {
+        let i = NSMenuItem(title: title, action: action, keyEquivalent: key)
+        i.target = self
+        i.isEnabled = action != nil
+        return i
     }
 
     @objc private func toggleConnection() { actions?.onToggleConnection() }

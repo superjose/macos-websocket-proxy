@@ -10,8 +10,8 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section("General") {
-                Toggle("Show in Dock", isOn: dockBinding)
-                Toggle("Show in menu bar", isOn: menuBarBinding)
+                Toggle("Show in Dock", isOn: guarded(\.showInDock, unless: \.showInMenuBar))
+                Toggle("Show in menu bar", isOn: guarded(\.showInMenuBar, unless: \.showInDock))
             }
 
             Section("Startup") {
@@ -40,25 +40,16 @@ struct SettingsView: View {
         .frame(minWidth: 420, idealWidth: 460)
     }
 
-    // Block hiding the menu bar when there'd be no way back.
-    private var menuBarBinding: Binding<Bool> {
-        Binding(get: { settings.showInMenuBar }) { newVal in
-            if !newVal && !settings.showInDock && !canHideEverything {
+    // Block hiding the last way back to the UI: refuse to turn a visibility toggle off
+    // when the other one is already off and there's no global shortcut.
+    private func guarded(_ keyPath: ReferenceWritableKeyPath<AppSettings, Bool>,
+                         unless other: ReferenceWritableKeyPath<AppSettings, Bool>) -> Binding<Bool> {
+        Binding(get: { settings[keyPath: keyPath] }) { newVal in
+            if !newVal && !settings[keyPath: other] && !canHideEverything {
                 showHideWarning = true
             } else {
                 showHideWarning = false
-                settings.showInMenuBar = newVal
-            }
-        }
-    }
-
-    private var dockBinding: Binding<Bool> {
-        Binding(get: { settings.showInDock }) { newVal in
-            if !newVal && !settings.showInMenuBar && !canHideEverything {
-                showHideWarning = true
-            } else {
-                showHideWarning = false
-                settings.showInDock = newVal
+                settings[keyPath: keyPath] = newVal
             }
         }
     }

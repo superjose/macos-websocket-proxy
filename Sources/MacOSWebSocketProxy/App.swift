@@ -60,20 +60,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         hotkey.onTrigger = { [weak self] in self?.showMainWindow() }
 
-        proxy.$status
+        // objectWillChange covers every @Published property: one sink per observable.
+        // It fires on willSet; the async hop reads the post-set value.
+        proxy.objectWillChange
             .sink { [weak self] _ in DispatchQueue.main.async { self?.menuBar.refresh() } }
             .store(in: &cancellables)
-
-        proxy.$upstreamStatus
-            .sink { [weak self] _ in DispatchQueue.main.async { self?.menuBar.refresh() } }
+        settings.objectWillChange
+            .sink { [weak self] _ in DispatchQueue.main.async { self?.applyAllSettings() } }
             .store(in: &cancellables)
-
-        let apply: (Any?) -> Void = { [weak self] _ in DispatchQueue.main.async { self?.applyAllSettings() } }
-        settings.$showInDock.sink(receiveValue: apply).store(in: &cancellables)
-        settings.$showInMenuBar.sink(receiveValue: apply).store(in: &cancellables)
-        settings.$launchAtLogin.sink(receiveValue: apply).store(in: &cancellables)
-        settings.$hotkeyEnabled.sink(receiveValue: apply).store(in: &cancellables)
-        settings.$hotkey.sink(receiveValue: apply).store(in: &cancellables)
     }
 
     private func applyAllSettings() {
@@ -106,36 +100,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: windows
 
     func showMainWindow() {
-        if main == nil {
-            let view = ContentView(onOpenSettings: { [weak self] in self?.showSettingsWindow() })
+        open(&main, title: "WebSocket Proxy", resizable: true,
+             size: NSSize(width: 460, height: 340), minSize: NSSize(width: 420, height: 300)) {
+            ContentView(onOpenSettings: { [weak self] in self?.showSettingsWindow() })
                 .environmentObject(proxy)
-            let hosting = NSHostingController(rootView: view)
-            let w = NSWindow(contentViewController: hosting)
-            w.title = "WebSocket Proxy"
-            w.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-            w.isReleasedWhenClosed = false
-            w.setContentSize(NSSize(width: 460, height: 340))
-            w.minSize = NSSize(width: 420, height: 300)
-            w.center()
-            main = w
         }
-        main?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
     }
 
     func showSettingsWindow() {
-        if settingsWindow == nil {
-            let view = SettingsView().environmentObject(settings)
-            let hosting = NSHostingController(rootView: view)
+        open(&settingsWindow, title: "Settings") { SettingsView().environmentObject(settings) }
+    }
+
+    /// Create-once window presenter: builds + remembers the window, then just re-fronts it.
+    private func open<V: View>(_ window: inout NSWindow?, title: String, resizable: Bool = false,
+                               size: NSSize? = nil, minSize: NSSize? = nil,
+                               @ViewBuilder view: () -> V) {
+        if window == nil {
+            let hosting = NSHostingController(rootView: view())
             let w = NSWindow(contentViewController: hosting)
-            w.title = "Settings"
+            w.title = title
             w.styleMask = [.titled, .closable, .miniaturizable]
+            if resizable { w.styleMask.insert(.resizable) }
             w.isReleasedWhenClosed = false
-            w.setContentSize(hosting.view.fittingSize)
+            w.setContentSize(size ?? hosting.view.fittingSize)
+            if let minSize { w.minSize = minSize }
             w.center()
-            settingsWindow = w
+            window = w
         }
-        settingsWindow?.makeKeyAndOrderFront(nil)
+        window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
