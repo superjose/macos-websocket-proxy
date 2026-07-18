@@ -65,6 +65,22 @@ final class FramingTests: XCTestCase {
         XCTAssertEqual(frameComplete?.payload, payload)
     }
 
+    func testNonZeroStartIndexBuffer() {
+        // Data.removeFirst shifts startIndex: after consuming frame 1, inbound has a
+        // non-zero startIndex. Parsing frame 2 must not trap on buffer[0].
+        let payload = "hello".data(using: .utf8)!
+        let maskKey = Data([0x11, 0x22, 0x33, 0x44])
+        let frame = wsEncodeFrame(opcode: .text, payload: payload, masked: true, maskKey: maskKey)
+
+        var inbound = Data(repeating: 0, count: 8)
+        inbound.removeFirst(8) // leaves startIndex shifted, count 0
+        inbound.append(frame)
+
+        let parsed = try! wsParseFrame(buffer: &inbound)
+        XCTAssertEqual(parsed?.payload, payload)
+        XCTAssertTrue(inbound.isEmpty)
+    }
+
     func testAssemblerFragments() {
         let asm = WSMessageAssembler()
         XCTAssertNil(asm.feed(WSFrame(fin: false, opcode: .text, payload: "hel".data(using: .utf8)!)))

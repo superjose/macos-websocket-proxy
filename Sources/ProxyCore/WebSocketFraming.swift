@@ -89,12 +89,14 @@ func wsEncodeFrame(fin: Bool = true, opcode: WSOpcode, payload: Data, masked: Bo
 
 /// Try to parse one frame from the front of `buffer`. On success, consumes those bytes
 /// (via `removeFirst`) and returns the frame. Returns nil if not enough bytes yet.
-/// `buffer` is assumed 0-based (created via `Data()` + append/removeFirst).
+/// Indexing is startIndex-relative: `removeFirst` shifts a Data's startIndex, so after
+/// consuming one frame the buffer is no longer 0-based.
 func wsParseFrame(buffer: inout Data) throws -> WSFrame? {
     guard buffer.count >= 2 else { return nil }
 
-    let byte0 = buffer[0]
-    let byte1 = buffer[1]
+    let base = buffer.startIndex
+    let byte0 = buffer[base]
+    let byte1 = buffer[base + 1]
 
     let fin = (byte0 & 0x80) != 0
     guard (byte0 & 0x70) == 0 else { throw WSFramingError.rsvNotZero }
@@ -110,13 +112,13 @@ func wsParseFrame(buffer: inout Data) throws -> WSFrame? {
         length = len7
     } else if len7 == 126 {
         guard buffer.count >= idx + 2 else { return nil }
-        length = (Int(buffer[idx]) << 8) | Int(buffer[idx + 1])
+        length = (Int(buffer[base + idx]) << 8) | Int(buffer[base + idx + 1])
         idx += 2
     } else { // 127
         guard buffer.count >= idx + 8 else { return nil }
         var v: UInt64 = 0
         for i in 0..<8 {
-            v = (v << 8) | UInt64(buffer[idx + i])
+            v = (v << 8) | UInt64(buffer[base + idx + i])
         }
         length = Int(v) // ponytail: no cap; a local proxy won't see >Int.max payloads
         idx += 8
@@ -125,16 +127,16 @@ func wsParseFrame(buffer: inout Data) throws -> WSFrame? {
     var maskKey: Data? = nil
     if masked {
         guard buffer.count >= idx + 4 else { return nil }
-        maskKey = Data(buffer[idx..<(idx + 4)])
+        maskKey = Data(buffer[(base + idx)..<(base + idx + 4)])
         idx += 4
     }
 
     guard buffer.count >= idx + length else { return nil }
 
-    var payload = Data(buffer[idx..<(idx + length)])
+    var payload = Data(buffer[(base + idx)..<(base + idx + length)])
     if let maskKey {
         for i in 0..<payload.count {
-            payload[i] ^= maskKey[i % 4]
+            payload[payload.startIndex + i] ^= maskKey[maskKey.startIndex + (i % 4)]
         }
     }
 
