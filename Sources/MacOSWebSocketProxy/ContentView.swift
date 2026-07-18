@@ -26,6 +26,25 @@ extension ProxyStatus {
     }
 }
 
+extension UpstreamStatus {
+    var text: String {
+        switch self {
+        case .off:         return "Off"
+        case .waiting:     return "Waiting…"
+        case .connected:   return "Connected"
+        case .unreachable: return "Unreachable"
+        }
+    }
+    var color: Color {
+        switch self {
+        case .off:         return .secondary
+        case .waiting:     return .orange
+        case .connected:   return .green
+        case .unreachable: return .red
+        }
+    }
+}
+
 struct ContentView: View {
     var onOpenSettings: () -> Void = {}
     @EnvironmentObject var controller: ProxyController
@@ -65,9 +84,16 @@ struct ContentView: View {
     }
 
     private var statusBadge: some View {
+        HStack(spacing: 12) {
+            badge(label: "Proxy", text: controller.status.text, color: controller.status.color)
+            badge(label: "Upstream", text: controller.upstreamStatus.text, color: controller.upstreamStatus.color)
+        }
+    }
+
+    private func badge(label: String, text: String, color: Color) -> some View {
         HStack(spacing: 6) {
-            Circle().fill(controller.status.color).frame(width: 10, height: 10)
-            Text(controller.status.text).font(.caption).foregroundStyle(.secondary)
+            Circle().fill(color).frame(width: 10, height: 10)
+            Text("\(label): \(text)").font(.caption).foregroundStyle(.secondary)
         }
     }
 }

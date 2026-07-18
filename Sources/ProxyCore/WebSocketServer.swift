@@ -16,6 +16,10 @@ final class WebSocketServer {
     /// `(true, nil)` when the listener is ready; `(false, error?)` when stopped or failed.
     var onStateChange: ((Bool, Error?) -> Void)?
 
+    /// `true` when a session's upstream WS opens; `false` when an upstream open attempt fails;
+    /// `nil` when an established upstream drops (state unknown, probe will re-verify).
+    var onUpstreamState: ((Bool?) -> Void)?
+
     init(localHost: String, localPort: UInt16, remoteHost: String, remotePort: UInt16) {
         self.localHost = localHost
         self.localPort = localPort
@@ -59,6 +63,7 @@ final class WebSocketServer {
                                    remoteHost: remoteHost,
                                    remotePort: remotePort,
                                    queue: queue)
+        session.onUpstreamState = { [weak self] up in self?.onUpstreamState?(up) }
         session.onTeardown = { [weak self] s in self?.remove(session: s) }
         sessions.append(session)
         session.run()
@@ -89,6 +94,7 @@ private final class ProxySession {
     private var session: URLSession?
 
     var onTeardown: ((ProxySession) -> Void)?
+    var onUpstreamState: ((Bool?) -> Void)?
 
     init(client: NWConnection, remoteHost: String, remotePort: UInt16, queue: DispatchQueue) {
         self.client = client
@@ -146,6 +152,7 @@ private final class ProxySession {
         // upstream-open requirement). ponytail: 4s cap; unreachable hosts never report open.
         let timer = DispatchWorkItem { [weak self] in
             guard let self, !self.upstreamOpen, !self.closed else { return }
+            self.onUpstreamState?(false)
             self.respondAndClose(502, "Bad Gateway")
         }
         gateTimer = timer
@@ -158,14 +165,15 @@ private final class ProxySession {
         guard !closed, !upstreamOpen else { return }
         upstreamOpen = true
         gateTimer?.cancel(); gateTimer = nil
+        onUpstreamState?(true)
         upgradeClient()
     }
 
     fileprivate func upstreamDidFail() {
         guard !closed else { return }
         gateTimer?.cancel(); gateTimer = nil
-        if upstreamOpen { teardown() }
-        else { respondAndClose(502, "Bad Gateway") }
+        if upstreamOpen { onUpstreamState?(nil); teardown() }
+        else { onUpstreamState?(false); respondAndClose(502, "Bad Gateway") }
     }
 
     private func upgradeClient() {

@@ -5,6 +5,7 @@ import AppKit
 final class MenuBarController: NSObject {
     struct Actions {
         var statusText: () -> String
+        var upstreamText: () -> String
         var statusSymbol: () -> String
         var connectTitle: () -> String
         var onToggleConnection: () -> Void
@@ -42,8 +43,10 @@ final class MenuBarController: NSObject {
 
     private func buildMenu() -> NSMenu {
         let menu = NSMenu()
-        let status = menu.addItem(withTitle: "Status: \(actions?.statusText() ?? "—")", action: nil, keyEquivalent: "")
+        let status = menu.addItem(withTitle: "Proxy: \(actions?.statusText() ?? "—")", action: nil, keyEquivalent: "")
         status.isEnabled = false
+        let upstream = menu.addItem(withTitle: "Upstream: \(actions?.upstreamText() ?? "—")", action: nil, keyEquivalent: "")
+        upstream.isEnabled = false
         menu.addItem(NSMenuItem.separator())
 
         let connect = menu.addItem(withTitle: actions?.connectTitle() ?? "Connect",

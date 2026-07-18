@@ -50,6 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func wire() {
         menuBar.actions = MenuBarController.Actions(
             statusText: { [weak self] in self?.proxy.status.text ?? "" },
+            upstreamText: { [weak self] in self?.proxy.upstreamStatus.text ?? "" },
             statusSymbol: { [weak self] in self?.proxy.status.symbol ?? "" },
             connectTitle: { [weak self] in self?.proxy.buttonTitle ?? "Connect" },
             onToggleConnection: { [weak self] in self?.proxy.toggle() },
@@ -60,6 +61,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkey.onTrigger = { [weak self] in self?.showMainWindow() }
 
         proxy.$status
+            .sink { [weak self] _ in DispatchQueue.main.async { self?.menuBar.refresh() } }
+            .store(in: &cancellables)
+
+        proxy.$upstreamStatus
             .sink { [weak self] _ in DispatchQueue.main.async { self?.menuBar.refresh() } }
             .store(in: &cancellables)
 
